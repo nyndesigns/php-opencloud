@@ -218,6 +218,57 @@ class CDNContainer extends AbstractStorageObject
 
         return true;
     }
+    
+    /**
+     * Bulk delete objects
+     * 
+     * @desc 	This will delete multiple objects from their account with a single request. You will need 
+     * 			to inspect the contents of the HTML response body in order to determine the number of successful
+     * 			deleted objects, errors, etc. See http://docs.rackspace.com/files/api/v1/cf-devguide/content/Bulk_Delete-d1e2338.html
+     * 			for more details.
+     * 
+     * @note 	You can delete a maximum of 10,000 objects per request -- to get around this you can: 
+     * 			foreach(array_chunk($files,10000) as $_files){ bulk_delete($_files,$params) }
+     * 
+     * @param array $files array of files / containers to delete
+     * @param array $params array of parameters
+     * @return HttpResponse if successful; FALSE if not
+     * @throws DeleteError
+     */
+    public function bulk_delete($files = array(),$params = array())
+    {
+		// Populate object
+        $this->populate($params);
+		
+		$body = '';
+		
+		foreach($files as $file_name) {
+			$body .= '/'.rawurlencode($this->name).'/'.rawurlencode($file_name)."\n";
+		}
+		
+		// Add extra headers
+        if (!empty($this->extra_headers)) {
+            $headers = $this->extra_headers;
+        }
+		
+		$headers['Content-Type'] = 'text/plain';
+		
+		$response = $this->getService()->request($this->url().'?bulk-delete=1', 'DELETE', $headers, $body);
+		
+        // check the status
+        // @codeCoverageIgnoreStart
+        if (($stat = $response->httpStatus()) >= 300) {
+            throw new Exceptions\DeleteError(sprintf(
+                Lang::translate('Problem deleting objects [%s] HTTP status [%s] response [%s]'),
+                $this->url(),
+                $stat,
+                $response->httpBody()
+            ));
+        }
+        // @codeCoverageIgnoreEnd
+        
+        return $response;
+    }
 
     /**
      * Loads the object from the service
